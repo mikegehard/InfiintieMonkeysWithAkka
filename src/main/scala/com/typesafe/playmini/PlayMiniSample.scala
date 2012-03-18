@@ -29,9 +29,10 @@ object PlayMiniSample extends Application {
     case GET(Path("/ping")) => Action { Ok("Pong @ %s\n".format(System.currentTimeMillis)) }
     case POST(Path("/write")) ⇒ Action { implicit request =>
       val start = System.nanoTime
-      val numberMonkeys = writeForm.bindFromRequest.get
+      val numberOfWordsToTry = writeForm.bindFromRequest.get
+
       AsyncResult {
-        (shakespeare ? numberMonkeys).mapTo[Result].asPromise.map { result ⇒
+        (shakespeare ? numberOfWordsToTry).mapTo[Result].asPromise.map { result ⇒
           // We have a result - make some fancy pantsy presentation of it
           val builder = new StringBuilder
           builder.append("SHAKESPEARE WORDS:\n")
@@ -44,7 +45,7 @@ object PlayMiniSample extends Application {
     }
   }
 
-  val writeForm = Form("number" -> number(min = 1))
+  val writeForm = Form("numberOfWordsToTry" -> number(min = 1))
 }
 
 case class Result(shakespeareMagic: Set[String], unworthyWords: Set[String])
@@ -58,9 +59,11 @@ class ShakespeareActor extends Actor {
   import context.dispatcher
 
   def receive = {
-    case actors: Int =>
-      val futures = for (x <- 1 to actors) yield {
-        context.actorOf(Props[MonkeyWorker]) ? randomGenerator.nextInt(100) mapTo manifest[Set[String]]
+    case numberOfWordsToTry: Int =>
+      val wordsPerMonkey = 1000
+      val numberOfMonkeys = numberOfWordsToTry / wordsPerMonkey
+      val futures = for (x <- 1 to numberOfMonkeys) yield {
+        context.actorOf(Props[MonkeyWorker]) ? wordsPerMonkey mapTo manifest[Set[String]]
       }
 
       Future.sequence(futures) map { wordSets =>
